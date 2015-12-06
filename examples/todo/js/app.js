@@ -10,7 +10,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import 'babel/polyfill';
+import 'babel-polyfill';
 import 'todomvc-common';
 import {createHashHistory} from 'history';
 import {IndexRoute, Route} from 'react-router';
@@ -20,6 +20,12 @@ import {RelayRouter} from 'react-router-relay';
 import TodoApp from './components/TodoApp';
 import TodoList from './components/TodoList';
 import ViewerQueries from './queries/ViewerQueries';
+
+import Relay from 'react-relay';
+import RelayCompositeNetworkLayer from 'relay-composite-network-layer';
+
+
+Relay.injectNetworkLayer(new RelayCompositeNetworkLayer(new Relay.DefaultNetworkLayer('/graphql')));
 
 ReactDOM.render(
   <RelayRouter history={createHashHistory({queryKey: false})}>
