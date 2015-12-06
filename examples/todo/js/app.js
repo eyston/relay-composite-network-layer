@@ -22,7 +22,74 @@ import TodoList from './components/TodoList';
 import ViewerQueries from './queries/ViewerQueries';
 
 import Relay from 'react-relay';
-import RelayCompositeNetworkLayer from 'relay-composite-network-layer';
+// import RelayCompositeNetworkLayer from 'relay-composite-network-layer';
+
+import RelayQuery from 'react-relay/lib/RelayQuery';
+
+const printQueryRequest = queryRequest => {
+  console.log({
+    kind: 'RelayQueryRequest',
+    debugName: queryRequest.getDebugName()
+  });
+  printRelayQueryNode(queryRequest.getQuery());
+}
+
+const printRelayQueryNode = node => {
+  if (node instanceof RelayQuery.Root) {
+    console.log({
+      kind: 'RelayQueryRoot',
+      type: node.getType(),
+      name: node.getName(),
+      fieldName: node.getFieldName()
+    });
+  } else if (node instanceof RelayQuery.Fragment) {
+    console.log({
+      kind: 'RelayQueryFragment',
+      type: node.getType(),
+      fragmentID: node.getFragmentID()
+    });
+  } else if (node instanceof RelayQuery.Field) {
+    console.log({
+      kind: 'RelayQueryField',
+      type: node.getType(),
+      schemaName: node.getSchemaName()
+    });
+  }
+
+  node.getChildren().map(printRelayQueryNode);
+}
+
+class RelayCompositeNetworkLayer {
+
+  constructor(defaultLayer) {
+    this.defaultLayer = defaultLayer;
+  }
+
+  sendMutation(mutationRequest) {
+    console.log('mutation request', mutationRequest);
+    return this.defaultLayer.sendMutation(mutationRequest);
+  }
+
+  sendQueries(queryRequests) {
+    console.log('query requests', queryRequests);
+    queryRequests.slice(0,1).forEach(queryRequest => {
+      printQueryRequest(queryRequest);
+      // console.log({
+      //   debugName: queryRequest.getDebugName(),
+      //   id: queryRequest.getID(),
+      //   variables: queryRequest.getVariables(),
+      //   query: queryRequest.getQuery()
+      // });
+    });
+    return this.defaultLayer.sendQueries(queryRequests);
+  }
+
+  supports(...options) {
+    console.log('options', ...options);
+    return this.defaultLayer.supports(...options);
+  }
+
+}
 
 
 Relay.injectNetworkLayer(new RelayCompositeNetworkLayer(new Relay.DefaultNetworkLayer('/graphql')));

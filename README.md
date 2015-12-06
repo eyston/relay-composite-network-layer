@@ -1,9 +1,8 @@
 TODO
 ====
 
-- walk the query
-  - print out types and fields as we go
-
+- insert a field into the query
+  - any fragment that is a user, add 'name' as a field
 
 Classes
 =======
@@ -20,7 +19,8 @@ extends
 members
 
 - getDebugName() : string
-- getID)() : string
+- getID() : string
+- getType() : string
 - getVariables() : Variables
 - getQueryString() : string
 - getQuery() : RelayQuery.Root
