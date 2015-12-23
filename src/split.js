@@ -9,6 +9,8 @@ export const splitRequestBySchema = (request, context) => {
       ...splitQuery,
       request
     };
+  } else {
+    throw new Error('unhandled query');
   }
 }
 

@@ -11,7 +11,11 @@
   ],
   "scripts": {
     "build": "babel src --out-dir lib/",
+    "update-schema": "babel-node ./test/scripts/updateSchema.js",
+    "merge-schemas": "babel-node ./test/scripts/mergeSchemas.js",
     "prepublish": "npm run build",
+    "test": "mocha --compilers js:babel-register",
+    "karma": "karma start",
     "start": "babel-node src/index.js"
   },
   "dependencies": {
@@ -22,6 +26,7 @@
     "babel-preset-stage-0": "6.3.13",
     "babel-relay-plugin": "0.6.0",
     "graphql": "0.4.14",
+    "graphql-relay": "0.3.6",
     "react": "0.14.3",
     "react-dom": "0.14.3",
     "react-relay": "0.6.0",
@@ -31,6 +36,21 @@
     "presets": [
       "es2015",
       "stage-0"
+    ],
+    "plugins": [
+      "./build/babelRelayPlugin"
     ]
+  },
+  "devDependencies": {
+    "babel-register": "6.3.13",
+    "expect": "1.13.4",
+    "json-loader": "0.5.4",
+    "karma": "0.13.15",
+    "karma-babel-preprocessor": "6.0.1",
+    "karma-chrome-launcher": "0.2.2",
+    "karma-mocha": "0.2.1",
+    "karma-webpack": "1.7.0",
+    "mocha": "2.3.4",
+    "relay-local-schema": "0.3.0"
   }
 }
