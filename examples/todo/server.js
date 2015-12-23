@@ -15,7 +15,7 @@ import graphQLHTTP from 'express-graphql';
 import path from 'path';
 import webpack from 'webpack';
 import WebpackDevServer from 'webpack-dev-server';
-import {schema} from './data/schema';
+import {schema} from './data/server/schema';
 
 const APP_PORT = 3000;
 const GRAPHQL_PORT = 8080;

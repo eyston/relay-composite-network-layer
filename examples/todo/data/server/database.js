@@ -10,8 +10,8 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-export class Todo extends Object {}
-export class User extends Object {}
+export class Todo {}
+export class User {}
 
 // Mock authenticated ID
 const VIEWER_ID = 'me';
@@ -19,6 +19,7 @@ const VIEWER_ID = 'me';
 // Mock user data
 var viewer = new User();
 viewer.id = VIEWER_ID;
+viewer.name = 'Huey';
 var usersById = {
   [VIEWER_ID]: viewer
 };

@@ -19,6 +19,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
+  GraphQLInterfaceType,
 } from 'graphql';
 
 import {
@@ -36,10 +37,13 @@ import {
 import {
   Todo,
   User,
+  Draft,
   addTodo,
   changeTodoStatus,
   getTodo,
   getTodos,
+  getDraft,
+  getDrafts,
   getUser,
   getViewer,
   markAllTodos,
@@ -94,8 +98,9 @@ var {
 
 var GraphQLUser = new GraphQLObjectType({
   name: 'User',
-  fields: {
+  fields: () => ({
     id: globalIdField('User'),
+    name: { type: GraphQLString },
     todos: {
       type: TodosConnection,
       args: {
@@ -115,8 +120,8 @@ var GraphQLUser = new GraphQLObjectType({
     completedCount: {
       type: GraphQLInt,
       resolve: () => getTodos('completed').length
-    },
-  },
+    }
+  }),
   interfaces: [nodeInterface]
 });
 

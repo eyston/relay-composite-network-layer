@@ -1,114 +1,102 @@
-/**
- * This file provided by Facebook is for non-commercial testing and evaluation
- * purposes only.  Facebook reserves all rights not expressly granted.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * FACEBOOK BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
-
 import 'babel-polyfill';
-import 'todomvc-common';
-import {createHashHistory} from 'history';
-import {IndexRoute, Route} from 'react-router';
+
 import React from 'react';
 import ReactDOM from 'react-dom';
-import {RelayRouter} from 'react-router-relay';
-import TodoApp from './components/TodoApp';
-import TodoList from './components/TodoList';
-import ViewerQueries from './queries/ViewerQueries';
 
 import Relay from 'react-relay';
-// import RelayCompositeNetworkLayer from 'relay-composite-network-layer';
 
-import RelayQuery from 'react-relay/lib/RelayQuery';
+import RelayLocalSchema from 'relay-local-schema';
+import {schema} from '../data/local/schema';
 
-const printQueryRequest = queryRequest => {
-  console.log({
-    kind: 'RelayQueryRequest',
-    debugName: queryRequest.getDebugName()
-  });
-  printRelayQueryNode(queryRequest.getQuery());
-}
+import {splitRequestBySchema} from './split';
+import {executeSplitRequest} from './execute';
 
-const printRelayQueryNode = node => {
-  if (node instanceof RelayQuery.Root) {
-    console.log({
-      kind: 'RelayQueryRoot',
-      type: node.getType(),
-      name: node.getName(),
-      fieldName: node.getFieldName()
-    });
-  } else if (node instanceof RelayQuery.Fragment) {
-    console.log({
-      kind: 'RelayQueryFragment',
-      type: node.getType(),
-      fragmentID: node.getFragmentID()
-    });
-  } else if (node instanceof RelayQuery.Field) {
-    console.log({
-      kind: 'RelayQueryField',
-      type: node.getType(),
-      schemaName: node.getSchemaName()
-    });
-  }
-
-  node.getChildren().map(printRelayQueryNode);
-}
+import config from 'json!../data/config.json';
 
 class RelayCompositeNetworkLayer {
 
-  constructor(defaultLayer) {
-    this.defaultLayer = defaultLayer;
-  }
-
-  sendMutation(mutationRequest) {
-    console.log('mutation request', mutationRequest);
-    return this.defaultLayer.sendMutation(mutationRequest);
+  constructor(config) {
+    this.config = config;
   }
 
   sendQueries(queryRequests) {
-    console.log('query requests', queryRequests);
-    queryRequests.slice(0,1).forEach(queryRequest => {
-      printQueryRequest(queryRequest);
-      // console.log({
-      //   debugName: queryRequest.getDebugName(),
-      //   id: queryRequest.getID(),
-      //   variables: queryRequest.getVariables(),
-      //   query: queryRequest.getQuery()
-      // });
-    });
-    return this.defaultLayer.sendQueries(queryRequests);
+    const context = {...this.config};
+    const splitRequests = queryRequests.map(request => splitRequestBySchema(request, context));
+
+    splitRequests.forEach(request => executeSplitRequest(request, context));
+  }
+
+  sendMutation(mutationRequest) {
+    throw new Error('mutations not supported yet');
   }
 
   supports(...options) {
-    console.log('options', ...options);
-    return this.defaultLayer.supports(...options);
+    return false;
   }
 
 }
 
+Relay.injectNetworkLayer(new RelayCompositeNetworkLayer({
+  ...config,
+  layers: {
+    server: new Relay.DefaultNetworkLayer('/graphql'),
+    local: new RelayLocalSchema.NetworkLayer({schema})
+  }
+}));
 
-Relay.injectNetworkLayer(new RelayCompositeNetworkLayer(new Relay.DefaultNetworkLayer('/graphql')));
+const node = Relay.QL`
+  query {
+    viewer {
+      totalCount
+      todos(status: $status, first: $first) {
+        edges {
+          node {
+            id
+            text
+          }
+        }
+      }
+      ...on User {
+        drafts(first: $first) {
+          edges {
+            node {
+              id
+              text
+              author {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
 
-ReactDOM.render(
-  <RelayRouter history={createHashHistory({queryKey: false})}>
-    <Route
-      path="/" component={TodoApp}
-      queries={ViewerQueries}>
-      <IndexRoute
-        component={TodoList}
-        queries={ViewerQueries}
-        prepareParams={() => ({status: 'any'})}
-      />
-      <Route
-        path=":status" component={TodoList}
-        queries={ViewerQueries}
-      />
-    </Route>
-  </RelayRouter>,
-  document.getElementById('root')
-);
+// drafts(first: $first) {
+//   edges {
+//     node {
+//       id
+//       text
+//       author {
+//         id
+//         name
+//         drafts(first: $first) {
+//           edges {
+//             node {
+//               id
+//               text
+//             }
+//           }
+//         }
+//       }
+//     }
+//   }
+// }
+
+
+const query = Relay.createQuery(node, {status: 'any', first: 10});
+
+Relay.Store.primeCache({ viewer: query }, state => {
+  console.log(state, JSON.stringify(Relay.Store.readQuery(query), null, 2));
+});

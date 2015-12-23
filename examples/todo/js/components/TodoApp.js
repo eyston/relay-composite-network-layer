@@ -25,6 +25,7 @@ class TodoApp extends React.Component {
   }
   render() {
     var hasTodos = this.props.viewer.totalCount > 0;
+    console.log('draft', this.props.local.draft);
     return (
       <div>
         <section className="todoapp">
@@ -76,5 +77,12 @@ export default Relay.createContainer(TodoApp, {
         ${TodoListFooter.getFragment('viewer')},
       }
     `,
+    // local: () => Relay.QL`
+    //   fragment on Local {
+    //     draft {
+    //       text
+    //     }
+    //   }
+    // `
   },
 });
