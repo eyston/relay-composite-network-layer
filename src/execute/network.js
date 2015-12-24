@@ -1,57 +1,56 @@
 import Relay from 'react-relay';
+import merge from 'lodash/object/merge';
 
 import RelayQuery from 'react-relay/lib/RelayQuery';
 import RelayQueryRequest from 'react-relay/lib/RelayQueryRequest';
 
 
-export const executeSplitRequest = (splitRequest, context) => {
-  const request = requestForSplitRequest(splitRequest, context);
-  const networkLayer = context.layers[splitRequest.schema];
+export const executeSplitRequest = async (splitRequest, context) => {
+  // const request = requestForSplitRequest(splitRequest, context);
+  // const networkLayer = context.layers[splitRequest.schema];
 
-  return networkLayer.sendQueries([request]);
-}
+  // return networkLayer.sendQueries([request]);
 
-const requestForSplitRequest = (splitRequest, context) => {
-  if (splitRequest.dependents.length > 0) {
-    const request = new RelayQueryRequest(splitRequest.query);
-    request.then(
-      data => handleRootSuccess(splitRequest, data, context),
-      err => handleRootFailure(splitRequest, err, context)
-    );
-    return request;
-  } else {
-    return splitRequest.request;
-  }
-}
-
-const handleRootFailure = (splitRequest, err, context) => {
-  splitRequest.request.reject(err);
-}
-
-const handleRootSuccess = async (splitRequest, data, context) => {
   try {
-    const dependentsDatas = await Promise.all(splitRequest.dependents.map(async dep => {
-      const pathIds = getIdsWithPath(data.response, dep.path);
+    let responses = await Promise.all(splitRequest.queries.map(query => {
 
-      const datas = await Promise.all(pathIds.map(async ({id, path}) => {
-        const data = await executeDependent(dep, id, context);
-        return {
-          path,
-          data
-        };
-      }));
+      const request = new RelayQueryRequest(query.query);
+      const networkLayer = context.layers[query.schema];
 
-      return datas;
+      networkLayer.sendQueries([request]);
+
+      return request.then(data => handleRootSuccess(query, data, context));
     }));
 
-    const mergedData = dependentsDatas.reduce((data, dependentDatas) => {
-      return mergeDependentDatas(data, dependentDatas);
-    }, data);
-
-    splitRequest.request.resolve(mergedData);
+    splitRequest.request.resolve(merge({}, ...responses));
   } catch (err) {
     splitRequest.request.reject(err);
   }
+
+}
+
+const handleRootSuccess = async (splitRequest, data, context) => {
+  const dependentsDatas = await Promise.all(splitRequest.dependents.map(async dep => {
+    const pathIds = getIdsWithPath(data.response, dep.path);
+
+    const datas = await Promise.all(pathIds.map(async ({id, path}) => {
+      const data = await executeDependent(dep, id, context);
+      return {
+        path,
+        data
+      };
+    }));
+
+    return datas;
+  }));
+
+  const mergedData = dependentsDatas.reduce((data, dependentDatas) => {
+    return mergeDependentDatas(data, dependentDatas);
+  }, data);
+
+  return mergedData;
+
+    // splitRequest.request.resolve(mergedData);
 }
 
 const executeDependent = async (dep, id, context) => {

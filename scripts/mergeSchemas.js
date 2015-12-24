@@ -4,7 +4,7 @@ import path from 'path';
 import localSchema from '../data/local/schema.json';
 import serverSchema from '../data/server/schema.json';
 
-import {createCompositeSchema} from '../js/merge';
+import {createCompositeSchema} from '../src/merge';
 
 const {schema,config} = createCompositeSchema({
   server: serverSchema,

@@ -80,6 +80,10 @@ var UserType = new GraphQLObjectType({
       type: DraftsConnection,
       args: connectionArgs,
       resolve: (obj, args) => connectionFromArray(getDrafts(), args)
+    },
+    draftCount: {
+      type: GraphQLInt,
+      resolve: () => getDrafts().length
     }
   }),
   interfaces: [nodeInterface]

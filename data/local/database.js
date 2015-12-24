@@ -1,7 +1,8 @@
 export class User {}
 export class Draft {}
 
-const VIEWER_ID = 'me';
+// const VIEWER_ID = 'me';
+const VIEWER_ID = 1;
 
 var viewer = new User();
 viewer.id = VIEWER_ID;

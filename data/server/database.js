@@ -1,99 +1,62 @@
-/**
- * This file provided by Facebook is for non-commercial testing and evaluation
- * purposes only.  Facebook reserves all rights not expressly granted.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * FACEBOOK BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
-
-export class Todo {}
 export class User {}
 
-// Mock authenticated ID
-const VIEWER_ID = 'me';
+let id = 1;
 
-// Mock user data
-var viewer = new User();
-viewer.id = VIEWER_ID;
-viewer.name = 'Huey';
-var usersById = {
-  [VIEWER_ID]: viewer
-};
+const usersById = {};
 
-// Mock todo data
-var todosById = {};
-var todoIdsByUser = {
-  [VIEWER_ID]: []
-};
-var nextTodoId = 0;
-addTodo('Taste JavaScript', true);
-addTodo('Buy a unicorn', false);
+const addUser = (name) => {
+  const user = new User();
+  user.id = id++;
+  user.name = name;
+  user.age = 13;
+  user.gender = 'male';
 
-export function addTodo(text, complete) {
-  var todo = new Todo();
-  todo.complete = !!complete;
-  todo.id = `${nextTodoId++}`;
-  todo.text = text;
-  todosById[todo.id] = todo;
-  todoIdsByUser[VIEWER_ID].push(todo.id);
-  return todo.id;
+  usersById[user.id] = user;
+
+  return user;
 }
 
-export function changeTodoStatus(id, complete) {
-  var todo = getTodo(id);
-  todo.complete = complete;
+export const getViewer = () => {
+  return viewer;
 }
 
-export function getTodo(id) {
-  return todosById[id];
-}
-
-export function getTodos(status = 'any') {
-  var todos = todoIdsByUser[VIEWER_ID].map(id => todosById[id]);
-  if (status === 'any') {
-    return todos;
-  }
-  return todos.filter(todo => todo.complete === (status === 'completed'));
-}
-
-export function getUser(id) {
+export const getUser = id => {
   return usersById[id];
 }
 
-export function getViewer() {
-  return getUser(VIEWER_ID);
+const viewer = addUser('Huey');
+
+const contactsForUser = {};
+const addContact = (user, contact) => {
+  contactsForUser[user.id] = (contactsForUser[user.id] || []).concat(contact.id);
 }
 
-export function markAllTodos(complete) {
-  var changedTodos = [];
-  getTodos().forEach(todo => {
-    if (todo.complete !== complete) {
-      todo.complete = complete;
-      changedTodos.push(todo);
-    }
-  });
-  return changedTodos.map(todo => todo.id);
+const jason = addUser('Jason');
+const nate = addUser('Nate')
+
+addContact(viewer, jason);
+addContact(viewer, nate);
+addContact(viewer, addUser('Strickland'));
+
+export class Message {}
+
+const messagesById = {};
+
+export const sendMessage = (author, recipient, text) => {
+  const message = new Message();
+  message.id = id++;
+  message.text = text;
+  message.authorId = author.id;
+  message.receipientId = recipient.id;
+
+  messagesById[message.id] = message;
+
+  return message;
 }
 
-export function removeTodo(id) {
-  var todoIndex = todoIdsByUser[VIEWER_ID].indexOf(id);
-  if (todoIndex !== -1) {
-    todoIdsByUser[VIEWER_ID].splice(todoIndex, 1);
-  }
-  delete todosById[id];
-}
+sendMessage(viewer, nate, 'Howdy, here is a message');
+sendMessage(viewer, jason, 'And another message');
 
-export function removeCompletedTodos() {
-  var todosToRemove = getTodos().filter(todo => todo.complete);
-  todosToRemove.forEach(todo => removeTodo(todo.id));
-  return todosToRemove.map(todo => todo.id);
-}
-
-export function renameTodo(id, text) {
-  var todo = getTodo(id);
-  todo.text = text;
+export const getMessage = id => {
+  return messagesById[id];
 }

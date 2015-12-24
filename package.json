@@ -11,15 +11,16 @@
   ],
   "scripts": {
     "build": "babel src --out-dir lib/",
-    "update-schema": "babel-node ./test/scripts/updateSchema.js",
-    "merge-schemas": "babel-node ./test/scripts/mergeSchemas.js",
+    "update-schema": "babel-node ./scripts/updateSchema.js",
+    "merge-schemas": "babel-node ./scripts/mergeSchemas.js",
     "prepublish": "npm run build",
     "test": "mocha --compilers js:babel-register",
     "karma": "karma start",
     "start": "babel-node src/index.js"
   },
   "dependencies": {
-    "immutable": "3.7.6"
+    "immutable": "3.7.6",
+    "lodash": "3.10.1"
   },
   "peerDependencies": {
     "react-relay": "0.6.0"

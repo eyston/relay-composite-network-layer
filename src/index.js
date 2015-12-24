@@ -8,6 +8,10 @@ export default class RelayCompositeNetworkLayer {
   }
 
   sendQueries(queryRequests) {
+    queryRequests.forEach(request => {
+      // console.log('composite', request.getID(), 'request', request.getQueryString());
+    });
+
     const context = {...this.config};
     const splitRequests = queryRequests.map(request => splitRequestBySchema(request, context));
 

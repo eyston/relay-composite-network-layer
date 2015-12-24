@@ -4,9 +4,11 @@ export const splitRequestBySchema = (request, context) => {
   const query = request.getQuery();
 
   if (query instanceof RelayQuery.Root) {
-    const splitQuery = splitRootBySchema(query, context);
+    // const splitQuery = splitRootBySchema(query, context);
+    const splitQueries = splitRootBySchema(query, context);
+
     return {
-      ...splitQuery,
+      queries: splitQueries,
       request
     };
   } else {
@@ -16,22 +18,17 @@ export const splitRequestBySchema = (request, context) => {
 
 const collectChildren = (children, context) => {
   const schema = context.schema;
-  const subQueriesBySchema = children
-    .map(child => splitNodeBySchema(child, context))
-    .reduce((grouped, sub) => ({
-      ...grouped,
-      [sub.schema]: (grouped[sub.schema] || []).concat(sub)
-    }), {});
+  const subQueries = subQueriesBySchema(children, context);
 
-  const schemaChildren = (subQueriesBySchema[schema] || []).map(sub => sub.node);
+  const schemaChildren = (subQueries[schema] || []).map(sub => sub.node);
 
-  const childrenDependents = (subQueriesBySchema[schema] || []).reduce((dependents, child) => {
+  const childrenDependents = (subQueries[schema] || []).reduce((dependents, child) => {
     return dependents.concat(child.dependents);
   }, []);
 
-  const dependents = Object.keys(subQueriesBySchema)
+  const dependents = Object.keys(subQueries)
     .filter(s => s !== schema)
-    .reduce((dependents, schema) => dependents.concat(subQueriesBySchema[schema]), childrenDependents)
+    .reduce((dependents, schema) => dependents.concat(subQueries[schema]), childrenDependents)
 
   return {
     children: schemaChildren,
@@ -39,22 +36,63 @@ const collectChildren = (children, context) => {
   };
 }
 
+const subQueriesBySchema = (children, context) => {
+  return children
+    .map(child => splitNodeBySchema(child, context))
+    .reduce((grouped, sub) => ({
+      ...grouped,
+      [sub.schema]: (grouped[sub.schema] || []).concat(sub)
+    }), {});
+}
+
 const splitRootBySchema = (root, context) => {
-  const schema = context.extensions[context.queryType][root.getFieldName()];
-  // TODO: invariant on schema not being null
-  const {children,dependents} = collectChildren(root.getChildren(), {
-    ...context,
-    parent: root.getType(),
-    schema
-  });
+  if (root.getFieldName() === 'node') {
+    // hack incoming
+    const fragment = root.getChildren().find(c => c instanceof RelayQuery.Fragment);
+    const subQueries = subQueriesBySchema(fragment.getChildren(), {
+      ...context,
+      parent: fragment.getType()
+    });
 
-  const key = root.getFieldName();
+    const key = root.getFieldName();
 
-  return {
-    query: root.clone(children),
-    schema,
-    dependents: dependents.map(d => ({...d, path: [key].concat(d.path)}))
-  };
+
+    return Object.keys(subQueries)
+      .filter(schema => schema !== 'undefined') // meh ...
+      .map(schema => {
+        const queries = subQueries[schema];
+        return {
+          query: root.clone(root.getChildren().map(c => {
+            if (c instanceof RelayQuery.Fragment) {
+              return fragment.clone(queries.map(query => query.node));
+            } else {
+              return c;
+            }
+          })),
+          schema,
+          dependents: queries
+            .reduce((dependents, query) => dependents.concat(query.dependents), [])
+            .map(d => ({...d, path: [key].concat(d.path)}))
+        };
+      });
+      // end hack
+  } else {
+    const schema = context.extensions[context.queryType][root.getFieldName()];
+    // TODO: invariant on schema not being null
+    const {children,dependents} = collectChildren(root.getChildren(), {
+      ...context,
+      parent: root.getType(),
+      schema
+    });
+
+    const key = root.getFieldName();
+
+    return [{
+      query: root.clone(children),
+      schema,
+      dependents: dependents.map(d => ({...d, path: [key].concat(d.path)}))
+    }];
+  }
 }
 
 const splitNodeBySchema = (node, context) => {
