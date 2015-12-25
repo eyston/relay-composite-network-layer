@@ -1,4 +1,4 @@
-import {getIn,intersect,into,pairs,pick,set,update,values} from '../utils';
+import {difference,getIn,intersect,into,pairs,pick,set,update,values} from '../utils';
 
 // CompositeType = {
 //   type: GraphQLType,
@@ -7,7 +7,7 @@ import {getIn,intersect,into,pairs,pick,set,update,values} from '../utils';
 // }
 
 export const createCompositeSchema = (schemaMap, options) => {
-  // TODO: validate options
+  assertOptionsValid(options);
 
   const compositeTypeMap = Object.keys(schemaMap).reduce((compositeTypeMap, name) => {
     const schema = schemaMap[name].data.__schema;
@@ -95,4 +95,22 @@ const mergeTypeFields = (compositeType, schemaName, sourceType, excludeFields=[]
 const implementsNode = type => {
   const interfaces = type.interfaces || [];
   return interfaces.some(i => i.name === 'Node');
+}
+
+const OPTION_KEYS = ['queryType', 'mutationType'];
+const REQUIRED_OPTIONS = ['queryType'];
+
+const assertOptionsValid = options => {
+  const invalidOptionKeys = difference(Object.keys(options), OPTION_KEYS);
+
+  if (invalidOptionKeys.length > 0) {
+    throw new Error(`Invalid Options : unknown option(s) : ${invalidOptionKeys.join(', ')}`);
+  }
+
+  const missingRequiredKeys = difference(REQUIRED_OPTIONS, Object.keys(options));
+
+  if (missingRequiredKeys.length > 0) {
+    throw new Error(`Invalid Options : missing required option(s) : ${missingRequiredKeys.join(', ')}`);
+  }
+
 }

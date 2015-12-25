@@ -26,6 +26,13 @@ export const intersect = (...arrs) => {
   });
 }
 
+export const difference = (...arrs) => {
+  return arrs.reduce((a, b) => {
+    const bs = new Set(b);
+    return a.filter(n => !bs.has(n));
+  });
+}
+
 export const pick = (obj, ...keys) => {
   return into({}, Object.keys(obj)
     .filter(key => keys.includes(key) && obj[key])
