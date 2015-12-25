@@ -4,104 +4,50 @@ import merge from 'lodash/object/merge';
 import RelayQuery from 'react-relay/lib/RelayQuery';
 import RelayQueryRequest from 'react-relay/lib/RelayQueryRequest';
 
+import {flatten,setIn,updateIn} from '../utils';
 
-export const executeSplitRequest = async (splitRequest, context) => {
-  // const request = requestForSplitRequest(splitRequest, context);
-  // const networkLayer = context.layers[splitRequest.schema];
+export const executeCompositeRequests = async (compositeRequests, context) => {
 
-  // return networkLayer.sendQueries([request]);
+  compositeRequests.forEach(async compositeRequest => {
+    try {
+      let responses = await Promise.all(compositeRequest.queries.map(query => {
+        return executeQuery(query, context);
+      }));
 
-  try {
-    let responses = await Promise.all(splitRequest.queries.map(query => {
-
-      const request = new RelayQueryRequest(query.query);
-      const networkLayer = context.layers[query.schema];
-
-      networkLayer.sendQueries([request]);
-
-      return request.then(data => handleRootSuccess(query, data, context));
-    }));
-
-    splitRequest.request.resolve(merge({}, ...responses));
-  } catch (err) {
-    splitRequest.request.reject(err);
-  }
+      compositeRequest.request.resolve(merge({}, ...responses));
+    } catch (err) {
+      compositeRequest.request.reject(err);
+    }
+  });
 
 }
 
-const handleRootSuccess = async (splitRequest, data, context) => {
-  const dependentsDatas = await Promise.all(splitRequest.dependents.map(async dep => {
-    const pathIds = getIdsWithPath(data.response, dep.path);
+const executeQuery = async (query, context) => {
+  const request = new RelayQueryRequest(query.query);
+  const networkLayer = context.layers[query.schema];
 
-    const datas = await Promise.all(pathIds.map(async ({id, path}) => {
-      const data = await executeDependent(dep, id, context);
-      return {
-        path,
-        data
-      };
-    }));
-
-    return datas;
-  }));
-
-  const mergedData = dependentsDatas.reduce((data, dependentDatas) => {
-    return mergeDependentDatas(data, dependentDatas);
-  }, data);
-
-  return mergedData;
-
-    // splitRequest.request.resolve(mergedData);
-}
-
-const executeDependent = async (dep, id, context) => {
-  const query = createQuery(dep.parent, id, [dep.node]);
-  const request = new RelayQueryRequest(query);
-  const networkLayer = context.layers[dep.schema];
   networkLayer.sendQueries([request]);
 
-  const data = await request;
+  return request.then(data => executeDependents(query, data, context));
+}
 
-  const dependentsDatas = await Promise.all(dep.dependents.map(async dep => {
-    const pathIds = getIdsWithPath(data.response.node, dep.path);
+const executeDependents = async (query, data, context) => {
+  const datasWithPath = await Promise.all(query.dependents.map(async ({path,fragment}) => {
+    const pathIds = getIdsWithPath(data.response, path);
 
-    const datas = await Promise.all(pathIds.map(async ({id, path}) => {
-      const data = await executeDependent(dep, id, context);
-      return {
-        path: ['node'].concat(path),
-        // path,
-        data
-      };
+    return Promise.all(pathIds.map(async ({id, path}) => {
+      const query = createCompositeQuery(fragment, id);
+      const data = await executeQuery(query, context);
+      return { data, path };
     }));
-
-    return datas;
   }));
 
-  const mergedData = dependentsDatas.reduce((data, dependentDatas) => {
-    return mergeDependentDatas(data, dependentDatas);
+  return flatten(datasWithPath).reduce((data, {path, data: depData}) => {
+    return updateIn(data, ['response', ...path], node => merge({}, node, depData.response.node));
   }, data);
-
-  return mergedData;
 }
 
-const executeDependents = async (prefix, deps, context) => {
-  const dependentsDatas = await Promise.all(deps.map(async dep => {
-    const pathIds = getIdsWithPath(data.response.node, dep.path);
-
-    const datas = await Promise.all(pathIds.map(async ({id, path}) => {
-      const data = await executeDependent(dep, id, context);
-      return {
-        path: prefix.concat(path),
-        data
-      };
-    }));
-
-    return datas;
-  }));
-
-  return dependentsDatas
-}
-
-const createQuery = (type, id, children) => {
+const createCompositeQuery = ({children, schema, type, dependents}, id) => {
   const query = Relay.createQuery({
     calls: [{
       kind: 'Call',
@@ -145,13 +91,17 @@ const createQuery = (type, id, children) => {
     }]
   }, { id });
 
-  return query.clone(query.getChildren().map(child => {
-    if (child instanceof RelayQuery.Fragment) {
-      return child.clone(children);
-    } else {
-      return child;
-    }
-  }));
+  return {
+    query: query.clone(query.getChildren().map(child => {
+      if (child instanceof RelayQuery.Fragment) {
+        return child.clone(children);
+      } else {
+        return child;
+      }
+    })),
+    schema,
+    dependents
+  };
 }
 
 const getIdsWithPath = (data, path, backwardPath = []) => {
@@ -176,30 +126,30 @@ const getIdsWithPath = (data, path, backwardPath = []) => {
   }
 }
 
-// this might be correct who knows!
-// can make this a reduce / non-recursive?
-const updateIn = (obj, path, cb) => {
-  if (path.length === 0) {
-    return cb(obj)
-  } else {
-    const field = path[0];
-    if (Array.isArray(obj)) {
-      let copy = obj.slice();
-      copy[field] = updateIn(obj[field], path.slice(1), cb);
-      return copy;
-    } else {
-      return {
-        ...obj,
-        [field]: updateIn(obj[field] || {}, path.slice(1), cb)
-      };
-    }
-  }
-}
-
-const mergeDependentData = (data, {path, data: dependentData}) => {
-  return updateIn(data, path, obj => ({...obj, ...dependentData.response.node}));
-}
-
-const mergeDependentDatas = (data, dependentDatas) => ({
-  response: dependentDatas.reduce(mergeDependentData, data.response)
-});
+// // this might be correct who knows!
+// // can make this a reduce / non-recursive?
+// const updateIn = (obj, path, cb) => {
+//   if (path.length === 0) {
+//     return cb(obj)
+//   } else {
+//     const field = path[0];
+//     if (Array.isArray(obj)) {
+//       let copy = obj.slice();
+//       copy[field] = updateIn(obj[field], path.slice(1), cb);
+//       return copy;
+//     } else {
+//       return {
+//         ...obj,
+//         [field]: updateIn(obj[field] || {}, path.slice(1), cb)
+//       };
+//     }
+//   }
+// }
+//
+// const mergeDependentData = (data, {path, data: dependentData}) => {
+//   return updateIn(data, path, obj => ({...obj, ...dependentData.response.node}));
+// }
+//
+// const mergeDependentDatas = (data, dependentDatas) => ({
+//   response: dependentDatas.reduce(mergeDependentData, data.response)
+// });

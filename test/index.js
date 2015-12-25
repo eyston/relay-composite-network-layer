@@ -12,7 +12,7 @@ import RelayCompositeNetworkLayer from '../src';
 
 import config from 'json!../data/config.json';
 
-const DEBUG = true;
+const DEBUG = false;
 
 class RelayLoggingNetworkLayer {
   constructor(name, layer) {

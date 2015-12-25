@@ -1,5 +1,5 @@
-import {splitRequestBySchema} from './split';
-import {executeSplitRequest} from './execute/network';
+import {createCompositeRequest} from './split';
+import {executeCompositeRequests} from './execute/network';
 
 export default class RelayCompositeNetworkLayer {
 
@@ -8,14 +8,10 @@ export default class RelayCompositeNetworkLayer {
   }
 
   sendQueries(queryRequests) {
-    queryRequests.forEach(request => {
-      // console.log('composite', request.getID(), 'request', request.getQueryString());
-    });
-
     const context = {...this.config};
-    const splitRequests = queryRequests.map(request => splitRequestBySchema(request, context));
+    const compositeRequests = queryRequests.map(request => createCompositeRequest(request, context));
 
-    splitRequests.forEach(request => executeSplitRequest(request, context));
+    return executeCompositeRequests(compositeRequests, context);
   }
 
   sendMutation(mutationRequest) {

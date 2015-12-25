@@ -1,144 +1,190 @@
 import RelayQuery from 'react-relay/lib/RelayQuery';
 
-export const splitRequestBySchema = (request, context) => {
+import {getIn,update} from './utils';
+
+const ANY_SCHEMA = '__ANY__';
+
+// CompositeRequest = {
+//   queries: [CompositeQuery],
+//   request
+// }
+
+export const createCompositeRequest = (request, context) => {
   const query = request.getQuery();
-
-  if (query instanceof RelayQuery.Root) {
-    // const splitQuery = splitRootBySchema(query, context);
-    const splitQueries = splitRootBySchema(query, context);
-
-    return {
-      queries: splitQueries,
-      request
-    };
-  } else {
-    throw new Error('unhandled query');
-  }
-}
-
-const collectChildren = (children, context) => {
-  const schema = context.schema;
-  const subQueries = subQueriesBySchema(children, context);
-
-  const schemaChildren = (subQueries[schema] || []).map(sub => sub.node);
-
-  const childrenDependents = (subQueries[schema] || []).reduce((dependents, child) => {
-    return dependents.concat(child.dependents);
-  }, []);
-
-  const dependents = Object.keys(subQueries)
-    .filter(s => s !== schema)
-    .reduce((dependents, schema) => dependents.concat(subQueries[schema]), childrenDependents)
+  const queries = splitBySchema(query, context);
 
   return {
-    children: schemaChildren,
-    dependents
+    queries,
+    request
   };
 }
 
-const subQueriesBySchema = (children, context) => {
-  return children
-    .map(child => splitNodeBySchema(child, context))
-    .reduce((grouped, sub) => ({
-      ...grouped,
-      [sub.schema]: (grouped[sub.schema] || []).concat(sub)
-    }), {});
+const splitBySchema = (query, context) => {
+  if (query instanceof RelayQuery.Root) {
+    return createCompositeQuery(query, context);
+  } else if (query instanceof RelayQuery.Field) {
+    return createCompositeFieldField(query, context);
+  } else if (query instanceof RelayQuery.Fragment) {
+    return createCompositeFragmentField(query, context)
+  } else {
+    // how do I print out wtf the type is lulz
+    throw new Error('unhandled RelayQuery type');
+  }
 }
 
-const splitRootBySchema = (root, context) => {
-  if (root.getFieldName() === 'node') {
-    // hack incoming
-    const fragment = root.getChildren().find(c => c instanceof RelayQuery.Fragment);
-    const subQueries = subQueriesBySchema(fragment.getChildren(), {
-      ...context,
-      parent: fragment.getType()
+// CompositeQuery = {
+//   query: RelayQuery
+//   schema,
+//   dependents
+// }
+
+const createCompositeQuery = (root, context) => {
+
+  const {extensions,queryType} = context;
+  const field = root.getFieldName();
+  const schema = extensions[queryType][field] || ANY_SCHEMA;
+
+  const fragments = createFragments(root.getChildren(), {
+    ...context,
+    parent: root.getType(),
+    schema
+  });
+
+  // query { node }
+  if (schema === ANY_SCHEMA) {
+    const {children,dependents} = collectFragments([field], schema, fragments);
+    const oldFragment = children.find(c => c instanceof RelayQuery.Fragment);
+
+    // pop dependencies of ANY_SCHEMA up into root queries
+    return dependents.map(dep => {
+      // inline ANY_SCHEMA fragments into each schema fragment
+      const newFragment = oldFragment.clone([...oldFragment.getChildren(), ...dep.fragment.children]);
+      return {
+        query: root.clone(children.map(child => child === oldFragment ? newFragment : child)),
+        schema: dep.fragment.schema,
+        dependents: dep.fragment.dependents
+      };
     });
-
-    const key = root.getFieldName();
-
-
-    return Object.keys(subQueries)
-      .filter(schema => schema !== 'undefined') // meh ...
-      .map(schema => {
-        const queries = subQueries[schema];
-        return {
-          query: root.clone(root.getChildren().map(c => {
-            if (c instanceof RelayQuery.Fragment) {
-              return fragment.clone(queries.map(query => query.node));
-            } else {
-              return c;
-            }
-          })),
-          schema,
-          dependents: queries
-            .reduce((dependents, query) => dependents.concat(query.dependents), [])
-            .map(d => ({...d, path: [key].concat(d.path)}))
-        };
-      });
-      // end hack
   } else {
-    const schema = context.extensions[context.queryType][root.getFieldName()];
-    // TODO: invariant on schema not being null
-    const {children,dependents} = collectChildren(root.getChildren(), {
-      ...context,
-      parent: root.getType(),
-      schema
-    });
-
-    const key = root.getFieldName();
+    const {children,dependents} = collectFragments([field], schema, fragments);
 
     return [{
       query: root.clone(children),
       schema,
-      dependents: dependents.map(d => ({...d, path: [key].concat(d.path)}))
+      dependents
     }];
   }
 }
 
-const splitNodeBySchema = (node, context) => {
-  if (node instanceof RelayQuery.Field) {
-    return splitFieldBySchema(node, context);
-  } else if (node instanceof RelayQuery.Fragment) {
-    return splitFragmentBySchema(node, context);
-  } else {
-    throw new Error(`unhandled node type ${typeof node}`);
-  }
+
+// CompositeFragment = {
+//   children,
+//   type,
+//   schema,
+//   dependents
+// }
+
+const createFragments = (children, context) => {
+  const {parent,schema} = context;
+
+  return children
+    .map(child => splitBySchema(child, context))
+    .reduce((fragments, field) => {
+      const {schema} = field;
+      return update(fragments, schema, emptyFragment(parent, schema), fragment => addField(fragment, field))
+    }, {});
 }
 
-const splitFieldBySchema = (field, context) => {
+const collectFragments = (path, schema, fragments) => {
+  const children = getIn(fragments, [schema, 'children'], []);
+  const dependents = Object.keys(fragments)
+    .map(schema => fragments[schema])
+    .reduce((deps, fragment) => {
+      if (fragment.schema === schema) {
+        return [...deps, ...fragment.dependents.map(d => increaseDepth(d, path))];
+      } else {
+        return [...deps, createDependentQuery(fragment, path)];
+      }
+    }, []);
+
+  return {children,dependents,schema};
+}
+
+const emptyFragment = (type, schema) => ({
+  type,
+  schema,
+  children: [],
+  dependents: []
+})
+
+const addField = (fragment, field) => {
+  return {
+    ...fragment,
+    children: [...fragment.children, field.node],
+    dependents: [...fragment.dependents, ...field.dependents]
+  };
+}
+
+// CompositeField = {
+//   node,
+//   schema,
+//   dependents
+// }
+
+const createCompositeFieldField = (field, context) => {
   const {schema,parent,extensions} = context;
 
-  const fieldSchema = (extensions[parent] || {})[field.getSchemaName()] || schema;
-  const {children,dependents} = collectChildren(field.getChildren(), {
+  const fieldSchema = getIn(extensions, [parent, field.getSchemaName()], schema);
+
+  const fragments = createFragments(field.getChildren(), {
     ...context,
     parent: field.getType(),
     schema: fieldSchema
   });
 
   const key = field.getSerializationKey();
+  const {children,dependents} = collectFragments([key], fieldSchema, fragments);
 
   return {
     node: field.clone(children),
-    parent,
     schema: fieldSchema,
-    path: [],
-    dependents: dependents.map(d => ({...d, path: [key].concat(d.path)}))
+    dependents
   };
+
 }
 
-const splitFragmentBySchema = (fragment, context) => {
-  const {schema,parent,extensions} = context;
+const createCompositeFragmentField = (fragment, context) => {
+  const {schema} = context;
 
-  const {children,dependents} = collectChildren(fragment.getChildren(), {
+  const fragments = createFragments(fragment.getChildren(), {
     ...context,
     parent: fragment.getType()
   });
 
+  const {children,dependents} = collectFragments([], schema, fragments);
+
   return {
     node: fragment.clone(children),
-    parent,
     schema,
-    path: [],
     dependents
-  }
+  };
+}
+
+// CompositeDependentQuery = {
+//   fragment,
+//   path
+// }
+
+const createDependentQuery = (fragment, path) => {
+  return {
+    path,
+    fragment
+  };
+}
+
+const increaseDepth = (dep, path) => {
+  return {
+    ...dep,
+    path: [...path, ...dep.path]
+  };
 }
