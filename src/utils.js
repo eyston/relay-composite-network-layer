@@ -15,6 +15,34 @@ export const flatten = arrs => {
   return arrs.reduce((a, b) => [...a, ...b], []);
 }
 
+export const values = obj => {
+  return Object.keys(obj).map(key => obj[key]);
+}
+
+export const intersect = (...arrs) => {
+  return arrs.reduce((a, b) => {
+    const bs = new Set(b);
+    return a.filter(n => bs.has(n));
+  });
+}
+
+export const pick = (obj, ...keys) => {
+  return into({}, Object.keys(obj)
+    .filter(key => keys.includes(key) && obj[key])
+    .map(key => [key, obj[key]]));
+}
+
+export const pairs = obj => {
+  return Object.keys(obj).map(key => [key, obj[key]]);
+}
+
+export const into = (obj, kvps) => {
+  return kvps.reduce((obj, [key, value]) => ({
+    ...obj,
+    [key]: value
+  }), obj);
+}
+
 export const get = (obj, field, defaultValue) => {
   if (obj) {
     return obj[field] || defaultValue;
@@ -32,6 +60,13 @@ export const getIn = (obj, path, defaultValue) => {
   } else {
     return defaultValue;
   }
+}
+
+export const set = (obj, key, value) => {
+  return {
+    ...obj,
+    [key]: value
+  };
 }
 
 export const setIn = (obj, path, value) => {

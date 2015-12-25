@@ -19,7 +19,6 @@
     "start": "babel-node src/index.js"
   },
   "dependencies": {
-    "immutable": "3.7.6",
     "lodash": "3.10.1"
   },
   "peerDependencies": {
@@ -29,9 +28,6 @@
     "presets": [
       "es2015",
       "stage-0"
-    ],
-    "plugins": [
-      "./build/babelRelayPlugin"
     ]
   },
   "devDependencies": {

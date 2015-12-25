@@ -17,7 +17,10 @@ module.exports = function(config) {
         loaders: [{
           test: /\.js$/,
           exclude: /(node_modules)/,
-          loader: 'babel-loader'
+          loader: 'babel-loader',
+          query: {
+            plugins: ['./build/babelRelayPlugin']
+          }
         }]
       }
     }

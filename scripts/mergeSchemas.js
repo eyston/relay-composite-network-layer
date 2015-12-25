@@ -22,9 +22,3 @@ fs.writeFileSync(
   path.join(__dirname, '../data/', 'config.json'),
   JSON.stringify(config, null, 2)
 );
-
-
-// fs.writeFileSync(
-//   path.join(__dirname, '../data/', 'schema.graphql'),
-//   printSchema(schema)
-// );
