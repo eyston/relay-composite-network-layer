@@ -1,102 +1,15 @@
 TODO
 ====
 
-- insert a field into the query
-  - any fragment that is a user, add 'name' as a field
+- need to improve validation for merging (this is main user interface really)
+  - what types can we / can't we merge
+  - validate input options ... queryType required, etc
 
-Classes
-=======
+- handle mutations
+  - omg I actually don't know if this will work ... think can just treat them like queries?!??!
+  - does Relay allow multiple root fields on a mutation?
+    - if yes: we need to execute them serially which sounds terrible?
 
-Not comprehensive by any means -- both classes and members.  Only noting things which may be useful.
+- sanitize the dependencies -- they are shit
 
-RelayQueryRequest
------------------
-
-extends
-
-`Deferred<QueryResult, Error>`
-
-members
-
-- getDebugName() : string
-- getID() : string
-- getType() : string
-- getVariables() : Variables
-- getQueryString() : string
-- getQuery() : RelayQuery.Root
-
-RelayQueryNode
---------------
-
-statics
-
-- create(...)
-
-members
-
-- getChildren() : Array<RelayQueryNode> :: this grabs the concrete node's children and wraps them in `RelayQueryNode`
-- getField(field: RelayQueryField) : ?RelayQueryField :: this is a map of storage key -> child if child is a `RelayQueryField`
-- getType() : string
-- getVariables() : Variables
-- getConcreteQueryNode(onCacheMiss: () => any) : any
-
-RelayQueryRoot
---------------
-
-extends
-
-`RelayQueryNode`
-
-statics
-
-- build(...)
-- create(...)
-
-members
-
-- getName() : string
-- getID() : string
-- getCallsWithValues() : Array<Call>
-- getFieldName() : string
-- getIdentifyingArg() ?Call
-- getStorageKey() : string
-
-RelayQueryFragment
-------------------
-
-extends
-
-`RelayQueryNode`
-
-statics
-
-- build(...)
-- create(...)
-
-members
-
-- getDebugName() : string
-- getConcreteFragmentID() : string
-- getFragmentID() : string
-
-RelayQueryField
----------------
-
-extends
-
-`RelayQueryNode`
-
-statics
-
-- build(...)
-- create(...)
-
-members
-
-- getDebugName() : string
-- getSchemaName() : string
-- getSerializationKey() : string
-- getStorageKey() : string
-- getApplicationName() : string
-- getCallsWithValues() : Array<Call>
-- getCallType(callName: string) : ?string
+- roll a gem
