@@ -125,31 +125,3 @@ const getIdsWithPath = (data, path, backwardPath = []) => {
     }
   }
 }
-
-// // this might be correct who knows!
-// // can make this a reduce / non-recursive?
-// const updateIn = (obj, path, cb) => {
-//   if (path.length === 0) {
-//     return cb(obj)
-//   } else {
-//     const field = path[0];
-//     if (Array.isArray(obj)) {
-//       let copy = obj.slice();
-//       copy[field] = updateIn(obj[field], path.slice(1), cb);
-//       return copy;
-//     } else {
-//       return {
-//         ...obj,
-//         [field]: updateIn(obj[field] || {}, path.slice(1), cb)
-//       };
-//     }
-//   }
-// }
-//
-// const mergeDependentData = (data, {path, data: dependentData}) => {
-//   return updateIn(data, path, obj => ({...obj, ...dependentData.response.node}));
-// }
-//
-// const mergeDependentDatas = (data, dependentDatas) => ({
-//   response: dependentDatas.reduce(mergeDependentData, data.response)
-// });
