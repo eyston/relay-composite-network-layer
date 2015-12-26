@@ -11,84 +11,132 @@ export const createCompositeSchema = (schemaMap, options) => {
 
   const compositeTypeMap = Object.keys(schemaMap).reduce((compositeTypeMap, name) => {
     const schema = schemaMap[name].data.__schema;
-    const queryType = getIn(schema, ['queryType', 'name']);
+    const schemaRootTypes = pick(schema, 'queryType', 'mutationType', 'subscriptionType');
+
+    // we map queryType from source to destination name, e.g. ServerQuery -> Query
+    const sourceToDestinationRootNames = into({}, pairs(schemaRootTypes)
+      .map(([kind, {name:sourceName}]) => [sourceName, options[kind]])
+    );
 
     return schema.types.reduce((compositeTypeMap, type) => {
-      if (type.name === queryType) {
-        return update(compositeTypeMap, options.queryType,
-          ct => mergeQueryType(ct, name, set(type, 'name', options.queryType))
-        );
-      } else {
-        return update(compositeTypeMap, type.name, ct => mergeType(ct, name, type));
-      }
+      const typeName = sourceToDestinationRootNames[type.name] || type.name;
+      return update(compositeTypeMap, typeName, ct => {
+        if (!ct) {
+          return createCompositeType(set(type, 'name', typeName), {...options, schema:name});
+        } else {
+          return mergeType(ct, type, {...options, schema:name});
+        }
+      });
     }, compositeTypeMap);
   }, {});
+
+  const typeOptions = pick(options, 'queryType', 'mutationType', 'subscriptionType');
+
+  const types = values(compositeTypeMap).map(ct => ct.type);
+
+  const extensions = into({}, values(compositeTypeMap)
+      .filter(ct => ct.extensions)
+      .map(({type,extensions}) => [type.name, extensions])
+  );
 
   return {
     schema: {
       data: {
         __schema: {
-          ...into({}, pairs(pick(options, 'queryType')).map(([type,name]) => [type, {name}])),
-          types: values(compositeTypeMap).map(ct => ct.type)
+          ...into({}, pairs(typeOptions).map(([type,name]) => [type, {name}])),
+          types
         }
       }
     },
     config: {
-      ...pick(options, 'queryType'),
-      extensions: into({}, values(compositeTypeMap).filter(ct => ct.extensions).map(({type,extensions}) => [type.name, extensions]))
+      ...typeOptions,
+      extensions
     }
   };
 }
 
-const mergeType = (compositeType, schemaName, sourceType) => {
+const createCompositeType = (sourceType, options) => {
+  const {schema} = options;
+  return {
+    type: sourceType,
+    extensions: typeExtensions(sourceType, options),
+    schemas: [schema]
+  };
+}
 
-  if (compositeType && (compositeType.type.kind !== sourceType.kind)) {
-    const {schemas} = compositeType;
+const mergeType = (compositeType, sourceType, options) => {
+  const {type,schemas} = compositeType;
+  const {schema} = options;
+
+  // any other sanity checks we need here???
+  if (type.kind !== sourceType.kind) {
     throw new Error(`Invalid Extension: type ${sourceType.name} with non-matching kinds from schemas ${[...schemas, schemaName].join(', ')}.`);
   }
 
-  if (implementsNode(sourceType)) {
-    return mergeTypeFields(compositeType, schemaName, sourceType, ['id']);
-  } else if (!compositeType) {
-    return {type: sourceType, schemas: [schemaName]};
+  if (implementsNode(type)) {
+    return mergeExpandableType(compositeType, sourceType, options);
+  } else if (type.name === 'Node') {
+    return mergeNodeType(compositeType, sourceType, options);
+  } else if (type.name === options.queryType) {
+    return mergeTypeFields(compositeType, sourceType, {...options, excludeFields: ['node']});
+  } else if (type.name === options.mutationType) {
+    return mergeTypeFields(compositeType, sourceType, options);
+  } else if (type.name === options.subscriptionType) {
+    return mergeTypeFields(compositeType, sourceType, options);
+  } else if (type.name.startsWith('__')) {
+    return {...compositeType, schemas: [...schemas, schema]};
   } else {
-    //TODO: assertTypesMatch(compositeType.type, sourceType);
-    return {
-      ...compositeType,
-      schemas: [...compositeType.schemas, schemaName]
-    };
+    //TODO: assertTypesEquivalent(type, sourceType);
+    return {...compositeType, schemas: [...schemas, schema]};
   }
 
 }
 
-const mergeQueryType = (compositeType, schemaName, sourceType) => {
-  return mergeTypeFields(compositeType, schemaName, sourceType, ['node']);
+const mergeNodeType = ({type,schemas,...rest}, sourceType, {schema}) => ({
+  ...rest,
+  type: update(type, 'possibleTypes', pts => [...pts, ...sourceType.possibleTypes]),
+  schemas: [...schemas, schema]
+})
+
+const mergeExpandableType = (compositeType, sourceType, options) => {
+  return mergeTypeFields(compositeType, sourceType, {...options,excludeFields: ['id']});
 }
 
-const mergeTypeFields = (compositeType, schemaName, sourceType, excludeFields=[]) => {
+const mergeTypeFields = (compositeType, sourceType, options) => {
+  const {schema,excludeFields=[]} = options;
   const sourceFields = sourceType.fields.filter(field => !excludeFields.includes(field.name));
-  const sourceExtensions = into({}, sourceFields.map(field => [field.name, schemaName]));
+  const sourceExtensions = typeExtensions(sourceType, options);
 
-  if (compositeType) {
-    const {type,extensions,schemas} = compositeType;
+  const {type,extensions,schemas,...rest} = compositeType;
 
-    const multipleExtensions = intersect(Object.keys(sourceExtensions), Object.keys(extensions));
-    if (multipleExtensions.length > 0) {
-      const fieldName = multipleExtensions[0];
-      throw new Error(`Invalid Extension: type ${type.name} with field ${fieldName} in multiple schemas -- ${[...schemas, schemaName].join(', ')}`);
-    }
+  const fieldConflicts = intersect(type.fields.map(f => f.name),sourceFields.map(f => f.name));
 
-    return {
-      type: update(type, 'fields', fields => [...fields, ...sourceFields]),
-      extensions: {...extensions, ...sourceExtensions},
-      schemas: [...schemas, schemaName]
-    };
-  } else {
-    return {
-      type: sourceType,
-      extensions: sourceExtensions,
-      schemas: [schemaName]
-    };
+  if (fieldConflicts.length > 0) {
+    const fieldName = fieldConflicts[0];
+    throw new Error(`Invalid Extension : type ${type.name} field ${fieldName} is defined by multiple schemas : ${[...schemas, schema].join(', ')}`);
+  }
+
+  return {
+    ...rest,
+    type: update(type, 'fields', fields => [...fields, ...sourceFields]),
+    extensions: {...extensions, ...sourceExtensions},
+    schemas: [...schemas, schema]
+  };
+}
+
+const typeExtensions = (type, {schema,queryType,mutationType,subscriptionType}) => {
+  if (implementsNode(type)) {
+    return into({}, type.fields
+      .filter(field => field.name !== 'id')
+      .map(field => [field.name, schema])
+    );
+  } else if (type.name === queryType) {
+    return into({}, type.fields
+      .filter(field => field.name !== 'node')
+      .map(field => [field.name, schema])
+    );
+  } else if (type.name === mutationType || type.name === subscriptionType) {
+    return into({}, type.fields.map(field => [field.name, schema]));
   }
 }
 
