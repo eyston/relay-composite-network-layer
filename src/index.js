@@ -1,5 +1,5 @@
-import {createCompositeRequest} from './split';
-import {executeCompositeRequests} from './execute/network';
+import {createCompositeRequest,createMutationRequest} from './split';
+import {executeCompositeRequests,executeCompositeMutation} from './execute/network';
 
 export default class RelayCompositeNetworkLayer {
 
@@ -15,7 +15,10 @@ export default class RelayCompositeNetworkLayer {
   }
 
   sendMutation(mutationRequest) {
-    throw new Error('mutations not supported yet');
+    const context = {...this.config};
+    const compositeMutationRequest = createMutationRequest(mutationRequest, context);
+
+    return executeCompositeMutation(compositeMutationRequest, context);
   }
 
   supports(...options) {

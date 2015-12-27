@@ -3,6 +3,7 @@ import merge from 'lodash/object/merge';
 
 import RelayQuery from 'react-relay/lib/RelayQuery';
 import RelayQueryRequest from 'react-relay/lib/RelayQueryRequest';
+import RelayMutationRequest from 'react-relay/lib/RelayMutationRequest';
 
 import {flatten,setIn,updateIn} from '../utils';
 
@@ -22,6 +23,15 @@ export const executeCompositeRequests = async (compositeRequests, context) => {
 
 }
 
+export const executeCompositeMutation = async ({mutation,request}, context) => {
+  try {
+    const response = await executeMutation(mutation, context);
+    request.resolve(response);
+  } catch (err) {
+    request.reject(err);
+  }
+}
+
 const executeQuery = async (query, context) => {
   const request = new RelayQueryRequest(query.query);
   const networkLayer = context.layers[query.schema];
@@ -29,6 +39,16 @@ const executeQuery = async (query, context) => {
   networkLayer.sendQueries([request]);
 
   return request.then(data => executeDependents(query, data, context));
+}
+
+const executeMutation = async (mutation, context) => {
+  const request = new RelayMutationRequest(mutation.mutation);
+
+  const networkLayer = context.layers[mutation.schema];
+
+  networkLayer.sendMutation(request);
+
+  return request.then(data => executeDependents(mutation, data, context));
 }
 
 const executeDependents = async (query, data, context) => {

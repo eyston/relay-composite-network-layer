@@ -19,13 +19,24 @@ export const createCompositeRequest = (request, context) => {
   };
 }
 
+export const createMutationRequest = (request, context) => {
+  const mutation = request.getMutation();
+
+  return {
+    mutation: splitBySchema(mutation, context),
+    request
+  };
+}
+
 const splitBySchema = (query, context) => {
   if (query instanceof RelayQuery.Root) {
     return createCompositeQuery(query, context);
   } else if (query instanceof RelayQuery.Field) {
     return createCompositeFieldField(query, context);
   } else if (query instanceof RelayQuery.Fragment) {
-    return createCompositeFragmentField(query, context)
+    return createCompositeFragmentField(query, context);
+  } else if (query instanceof RelayQuery.Mutation) {
+    return createCompositeMutation(query, context);
   } else {
     // how do I print out wtf the type is lulz
     throw new Error('unhandled RelayQuery type');
@@ -76,6 +87,36 @@ const createCompositeQuery = (root, context) => {
   }
 }
 
+// CompositeMutation = {
+//   mutation: RelayMutation
+//   schema,
+//   dependents
+// }
+
+const createCompositeMutation = (mutation, context) => {
+
+  const {extensions,mutationType} = context;
+  const call = mutation.getCall();
+  const field = call.name;
+  const schema = extensions[mutationType][field];
+
+  // TODO: invariant schema !== null
+
+  const fragments = createFragments(mutation.getChildren(), {
+    ...context,
+    parent: mutation.getType(),
+    schema
+  });
+
+  const {children,dependents} = collectFragments([field], schema, fragments);
+
+  return {
+    mutation: mutation.clone(children),
+    schema,
+    dependents
+  };
+
+}
 
 // CompositeFragment = {
 //   children,
@@ -178,7 +219,8 @@ const createCompositeFragmentField = (fragment, context) => {
 const createDependentQuery = (fragment, path) => {
   return {
     path,
-    fragment
+    // sorta unsure if this covers it all ...
+    fragment: update(fragment, 'dependents', deps => deps.map(d => increaseDepth(d, ['node'])))
   };
 }
 

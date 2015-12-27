@@ -110,9 +110,15 @@ export const updateIn = (obj, path, defaultValue, updater) => {
     return update(obj, path[0], defaultValue, updater);
   } else {
     const key = path[0];
-    return {
-      ...obj,
-      [key]: updateIn(obj[key] || {}, path.slice(1), defaultValue, updater)
+    if (Array.isArray(obj)) {
+      const copy = obj.slice();
+      copy[key] = updateIn(copy[key] || {}, path.slice(1), defaultValue, updater);
+      return copy;
+    } else {
+      return {
+        ...obj,
+        [key]: updateIn(obj[key] || {}, path.slice(1), defaultValue, updater)
+      };
     }
   }
 }

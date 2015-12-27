@@ -27,10 +27,11 @@ import {
   getUser,
   Draft,
   getDraft,
-  getDrafts
+  getDrafts,
+  addDraft
 } from './database';
 
-var {nodeInterface, nodeField} = nodeDefinitions(
+const {nodeInterface, nodeField} = nodeDefinitions(
   (globalId) => {
     var {type, id} = fromGlobalId(globalId);
     if (type === 'User') {
@@ -50,7 +51,7 @@ var {nodeInterface, nodeField} = nodeDefinitions(
   }
 );
 
-var DraftType = new GraphQLObjectType({
+const DraftType = new GraphQLObjectType({
   name: 'Draft',
   fields: () => ({
     id: globalIdField('Draft'),
@@ -63,16 +64,16 @@ var DraftType = new GraphQLObjectType({
   interfaces: [nodeInterface]
 });
 
-var {
+const {
   connectionType: DraftsConnection,
-  edgeType: GraphQLDraftEdge,
+  edgeType: DraftEdge,
 } = connectionDefinitions({
   name: 'Draft',
   nodeType: DraftType,
 });
 
 
-var UserType = new GraphQLObjectType({
+const UserType = new GraphQLObjectType({
   name: 'User',
   fields: () => ({
     id: globalIdField('User'),
@@ -89,13 +90,47 @@ var UserType = new GraphQLObjectType({
   interfaces: [nodeInterface]
 });
 
-var Root = new GraphQLObjectType({
+const Root = new GraphQLObjectType({
   name: 'Root',
   fields: {
     node: nodeField
   }
 });
 
+const AddDraftMutation = mutationWithClientMutationId({
+  name: 'AddDraft',
+  inputFields: {
+    text: { type: new GraphQLNonNull(GraphQLString) }
+  },
+  outputFields: {
+    edge: {
+      type: DraftEdge,
+      resolve: draft => {
+        return {
+          cursor: cursorForObjectInConnection(getDrafts(), draft),
+          node: draft
+        };
+      }
+    },
+    author: {
+      type: UserType,
+      resolve: ({authorId}) => getUser(authorId)
+    }
+  },
+  mutateAndGetPayload: ({text}) => {
+    const draftId = addDraft(text);
+    return getDraft(draftId);
+  }
+});
+
+const Mutation = new GraphQLObjectType({
+  name: 'Mutation',
+  fields: {
+    addDraft: AddDraftMutation
+  }
+});
+
 export var schema = new GraphQLSchema({
-  query: Root
+  query: Root,
+  mutation: Mutation
 });

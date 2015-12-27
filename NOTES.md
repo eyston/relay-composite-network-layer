@@ -19,6 +19,24 @@ members
 - getQueryString() : string
 - getQuery() : RelayQuery.Root
 
+RelayMutationRequest
+--------------------
+
+extends
+
+`Deferred<MutationResult, Error>`
+
+members
+
+- getDebugName() : string
+- getFiles() : FileMap
+- getVariables() : Variables
+- getQueryString() : string
+- getQuery() : RelayQuery.Root
+
+No id?
+
+
 RelayQueryNode
 --------------
 
@@ -94,3 +112,36 @@ members
 - getApplicationName() : string
 - getCallsWithValues() : Array<Call>
 - getCallType(callName: string) : ?string
+
+
+RelayQueryOperation
+-------------------
+
+extends
+
+`RelayQueryOperation`
+
+members
+
+- getName() : string
+- getResponseType() : string
+- getType() : string
+- getInputType() : string
+- getCall() : Call
+- getCallVariableName() : string
+- isAbstract() : boolean
+
+RelayQueryMutation
+------------------
+
+extends
+
+`RelayQueryOperation`
+
+statics
+
+- build(...)
+
+members
+
+- equals(RelayQueryNode) : boolean

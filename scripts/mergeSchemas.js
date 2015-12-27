@@ -10,7 +10,8 @@ const {schema,config} = createCompositeSchema({
   server: serverSchema,
   local: localSchema
 }, {
-  queryType: 'Query'
+  queryType: 'Query',
+  mutationType: 'Mutation'
 });
 
 fs.writeFileSync(

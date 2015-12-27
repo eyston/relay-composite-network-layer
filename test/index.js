@@ -14,6 +14,17 @@ import config from 'json!../data/config.json';
 
 const DEBUG = false;
 
+const logRequest = (name, request) => {
+  if (DEBUG) {
+    console.log(name, 'request', request.getQueryString());
+    request.then(response => {
+      if (DEBUG) {
+        console.log(name, 'response', JSON.stringify(response, null, 2));
+      }
+    });
+  }
+}
+
 class RelayLoggingNetworkLayer {
   constructor(name, layer) {
     this.name = name;
@@ -32,6 +43,7 @@ class RelayLoggingNetworkLayer {
   }
 
   sendMutation(mutationRequest) {
+    logRequest(this.name, mutationRequest);
     return this.layer.sendMutation(mutationRequest);
   }
 
@@ -156,7 +168,7 @@ describe('RelayCompositeNetworkLayer', () => {
 
   });
 
-  it('can query multiple schemas on a single node - xxx', async () => {
+  it('can query multiple schemas on a single node', async () => {
 
     const node = Relay.QL`
       query {
@@ -178,6 +190,115 @@ describe('RelayCompositeNetworkLayer', () => {
       age: 13,
       gender: 'male',
       draftCount: 2
+    });
+
+  });
+
+  it('can work with a mutation payload in multiple scheams', async () => {
+
+    class AddDraftMutation extends Relay.Mutation {
+
+      static fragments = {
+        author: () => Relay.QL`
+          fragment on User {
+            id
+          }
+        `
+      }
+
+      getMutation() {
+        return Relay.QL`mutation { addDraft }`;
+      }
+
+      getVariables() {
+        return {
+          text: this.props.text
+        }
+      }
+
+      getFatQuery() {
+        return Relay.QL`
+          fragment on AddDraftPayload {
+            author {
+              drafts
+              draftCount
+            }
+            edge
+          }
+        `;
+      }
+
+      getConfigs() {
+        return [{
+          type: 'RANGE_ADD',
+          parentName: 'author',
+          parentID: this.props.author.id,
+          connectionName: 'drafts',
+          edgeName: 'edge',
+          rangeBehaviors: {
+            '': 'append'
+          }
+        }];
+      }
+
+    }
+
+    const node = Relay.QL`
+      query {
+        viewer {
+          drafts(first: $first) {
+            edges {
+              node {
+                text
+                author {
+                  name
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const query = Relay.createQuery(node, {first: 10});
+
+    await getQuery(query);
+
+
+    const mutation = new AddDraftMutation({
+      author: { id: 'VXNlcjox' },
+      text: 'Here is some text yo'
+    });
+
+    await doMutation(mutation);
+
+    const response = Relay.Store.readQuery(query)[0];
+
+    expect(removeDataIds(response)).toEqual({
+      drafts: {
+        edges: [{
+          node: {
+            text: 'This is a draft',
+            author: {
+              name: 'Huey'
+            }
+          }
+        },{
+          node: {
+            text: 'This is another draft',
+            author: {
+              name: 'Huey'
+            }
+          }
+        },{
+          node: {
+            text: 'Here is some text yo',
+            author: {
+              name: 'Huey'
+            }
+          }
+        }]
+      }
     });
 
   });
@@ -210,6 +331,15 @@ const getQuery = query => {
       } else if (state.done) {
         resolve(Relay.Store.readQuery(query)[0]);
       }
+    });
+  });
+}
+
+const doMutation = mutation => {
+  return new Promise((resolve, reject) => {
+    Relay.Store.update(mutation, {
+      onSuccess: async () => resolve(),
+      onFailure: (transaction) => reject(transaction.getError())
     });
   });
 }
