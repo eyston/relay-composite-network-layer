@@ -25,6 +25,9 @@ TODO
 
 - roll a gem
 
+- figure out if we can reset the `Relay.Store` between tests
+
+
 
 FIXME
 =====
