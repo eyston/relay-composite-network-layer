@@ -340,8 +340,8 @@ const getQuery = query => {
 const doMutation = mutation => {
   return new Promise((resolve, reject) => {
     Relay.Store.update(mutation, {
-      onSuccess: async () => resolve(),
-      onFailure: (transaction) => reject(transaction.getError())
+      onSuccess: () => resolve(),
+      onFailure: transaction => reject(transaction.getError())
     });
   });
 }
