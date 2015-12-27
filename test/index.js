@@ -14,17 +14,6 @@ import config from 'json!../data/config.json';
 
 const DEBUG = false;
 
-const logRequest = (name, request) => {
-  if (DEBUG) {
-    console.log(name, 'request', request.getQueryString());
-    request.then(response => {
-      if (DEBUG) {
-        console.log(name, 'response', JSON.stringify(response, null, 2));
-      }
-    });
-  }
-}
-
 class RelayLoggingNetworkLayer {
   constructor(name, layer) {
     this.name = name;
@@ -43,7 +32,14 @@ class RelayLoggingNetworkLayer {
   }
 
   sendMutation(mutationRequest) {
-    logRequest(this.name, mutationRequest);
+    if (DEBUG) {
+      console.log(this.name, 'request', mutationRequest.getQueryString());
+      mutationRequest.then(response => {
+        if (DEBUG) {
+          console.log(this.name, 'response', JSON.stringify(response, null, 2));
+        }
+      });
+    }
     return this.layer.sendMutation(mutationRequest);
   }
 
@@ -52,14 +48,18 @@ class RelayLoggingNetworkLayer {
   }
 }
 
+const withLogging = (name, layer) => {
+  return new RelayLoggingNetworkLayer(name, layer);
+}
+
 // SUT
-Relay.injectNetworkLayer(new RelayCompositeNetworkLayer({
+Relay.injectNetworkLayer(withLogging('composite', new RelayCompositeNetworkLayer({
   ...config,
   layers: {
-    server: new RelayLoggingNetworkLayer('server', new RelayLocalSchema.NetworkLayer({schema: serverSchema})),
-    local: new RelayLoggingNetworkLayer('local', new RelayLocalSchema.NetworkLayer({schema: localSchema}))
+    server: withLogging('server', new RelayLocalSchema.NetworkLayer({schema: serverSchema})),
+    local: withLogging('local', new RelayLocalSchema.NetworkLayer({schema: localSchema}))
   }
-}));
+})));
 
 describe('RelayCompositeNetworkLayer', () => {
 
@@ -246,6 +246,7 @@ describe('RelayCompositeNetworkLayer', () => {
     const node = Relay.QL`
       query {
         viewer {
+          draftCount
           drafts(first: $first) {
             edges {
               node {
@@ -275,6 +276,7 @@ describe('RelayCompositeNetworkLayer', () => {
     const response = Relay.Store.readQuery(query)[0];
 
     expect(removeDataIds(response)).toEqual({
+      draftCount: 3,
       drafts: {
         edges: [{
           node: {
