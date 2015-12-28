@@ -4,15 +4,21 @@
   "version": "0.0.1",
   "license": "BSD-3-Clause",
   "homepage": "https://github.com/eyston/relay-composite-network-layer",
-  "repository": "eyston/relay-composite-network-layer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eyston/relay-composite-network-layer.git"
+  },
   "main": "lib/index.js",
   "files": [
-    "lib/"
+    "lib",
+    "README.md"
   ],
   "scripts": {
     "update-schema": "babel-node ./scripts/updateSchema.js",
     "merge-schemas": "babel-node ./scripts/mergeSchemas.js",
-    "karma": "karma start"
+    "build": "babel src --out-dir lib",
+    "karma": "karma start",
+    "prepublish": "npm run build"
   },
   "dependencies": {
     "lodash": "3.10.1"
