@@ -122,7 +122,7 @@ type Draft : Node {
 }
 
 type DraftConnection {
-  edges: DraftEdge
+  edges: [DraftEdge]
 }
 
 type DraftEdge {
