@@ -153,7 +153,7 @@ type Draft : Node {
 }
 
 type DraftConnection {
-  edges: DraftEdge
+  edges: [DraftEdge]
 }
 
 type DraftEdge {
@@ -223,7 +223,7 @@ The queries are then executed.
 {
   data: {
     viewer: {
-      id: 1
+      id: 1,
       name: 'Huey'
     }
   }
@@ -236,7 +236,7 @@ The queries are then executed.
 {
   data: {
     node: {
-      id: 1
+      id: 1,
       __typename: 'User',
       drafts: {
         edges: [{
@@ -255,9 +255,9 @@ Finally the results are merged and passed back to Relay.
 {
   data: {
     viewer: {
-      id: 1
+      id: 1,
       __typename: 'User',
-      name: 'Huey'
+      name: 'Huey',
       drafts: {
         edges: [{
           node: { title: 'Taste Javascript'},
@@ -270,6 +270,30 @@ Finally the results are merged and passed back to Relay.
 ```
 
 Relay cares not that part of the query has been local and part of it has been remote.
+
+You could also add an `author` field to `Draft` and query back and forth between *local* and *server*:
+
+```
+query {
+  viewer {                   # server field
+    selectedDraft {          # local field
+      author {               # server field
+        selectedDraft {
+          author {
+            selectedDraft {
+              author {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This will generate a bunch of sequential queries so be careful!
 
 Mutations
 =========
@@ -287,10 +311,6 @@ mutation {
       node {
         title
       }
-    }
-    name,
-    drafts(first: 10) {
-      edges { node { title } }
     }
   }
 }
