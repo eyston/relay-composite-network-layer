@@ -1,7 +1,7 @@
 {
   "name": "relay-composite-network-layer",
   "description": "A network layer for relay which can work with multiple underlying network layers",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "BSD-3-Clause",
   "homepage": "https://github.com/eyston/relay-composite-network-layer",
   "repository": {
