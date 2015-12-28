@@ -1,4 +1,4 @@
-import {difference,into,pairs,pick,set,setIn,update,values} from '../utils';
+import {difference,intersect,into,pairs,pick,set,setIn,update,union,values} from '../utils';
 
 // Schema = {
 //   name: string,
@@ -72,14 +72,13 @@ const mergeType = (destinationSchema, sourceSchema, typeName) => {
     return mergeSubscriptionType(destinationSchema, sourceSchema, typeName);
   } else if (source.name === 'Node') {
     return mergeNodeType(destinationSchema, sourceSchema, typeName);
-  } else if (source.name.startsWith('__')) {
-    return { type: source }
-  } else if (source.kind === 'SCALAR') {
-    return { type: source }
   } else {
-    return { type: source }
-  }
+    const destination = destinationSchema.types[typeName];
 
+    assertEquivalent(destination, source);
+
+    return {type: source};
+  }
 }
 
 const mergeExtendableType = (destinationSchema, sourceSchema, typeName) => {
@@ -103,6 +102,7 @@ const mergeExtendableType = (destinationSchema, sourceSchema, typeName) => {
 }
 
 const mergeNodeType = (destinationSchema, sourceSchema, typeName) => {
+  // TODO: merge the possible types
   const destination = destinationSchema.types[typeName];
   const source = sourceSchema.types[typeName];
 
@@ -150,6 +150,11 @@ const extendType = (destinationSchema, destinationTypeName, sourceSchema, source
 }
 
 const mergeFields = (type, fields) => {
+  const duplicateFields = intersect(type.fields.map(f => f.name), fields.map(f => f.name));
+  if (duplicateFields.length > 0) {
+    throw new Error(`Invalid Merge : type ${type.name} has definitions with duplicate fields: ${duplicateFields.join(', ')}`);
+  }
+
   return update(type, 'fields', fs => [...fs, ...fields]);
 }
 
@@ -201,4 +206,200 @@ const assertOptionsValid = options => {
     throw new Error(`Invalid Options : missing required option(s) : ${missingRequiredKeys.join(', ')}`);
   }
 
+}
+
+/// HIDEOUS BUT UNDERSTANDABLE ///
+
+const assertEquivalent = (destination, source) => {
+  if (!destination) {
+    return;
+  }
+
+  if (source.kind !== destination.kind) {
+    throw new Error(`Merge Exception : type ${typeName} has definitions of different kinds : ${destination.kind}, ${source.kind}`);
+  }
+
+  const kind = destination.kind;
+
+  switch(kind) {
+    case 'UNION':
+      throw new Error(`Merge Exception : merging UNION types is not supported : ${destination.name}`);
+    case 'INTERFACE':
+      throw new Error(`Merge Exception : merging INTERFACE types is not supported : ${destination.name}`);
+    case 'OBJECT':
+      assertObjectsEquivalent(destination, source);
+      break;
+    case 'INPUT_OBJECT':
+      assertInputObjectsEquivalent(destination, source);
+      break;
+    case 'ENUM':
+      assertEnumsEquivalent(destination, source);
+      break;
+    case 'SCALAR':
+      // nothing to assert for scalars
+      break;
+    default:
+      throw new Error(`Merge Exception : unsupported type kind ${kind} : file issue please, thanks friend!`);
+  }
+}
+
+
+// OBJECT
+// kind
+// name
+// description
+// fields
+// inputFields
+// interfaces
+// enumValues
+// possibleTypes
+
+const assertObjectsEquivalent = (objectA, objectB) => {
+  const unmatchedFields = symmetricDifference(objectA.fields, objectB.fields, 'name');
+
+  if (unmatchedFields.length > 0) {
+    throw new Error(`Invalid Merge : OBJECT type ${objectA.name} has duplicate definitions with different fields : ${unmatchedFields.join(', ')}.`);
+  }
+
+  const fieldError = objectA.fields.reduce((error, fieldA) => {
+    if (error) {
+      return error;
+    } else {
+      const fieldB = objectB.fields.find(f => f.name === fieldA.name);
+      return validateFieldsEquivalent(fieldA, fieldB);
+    }
+  }, null);
+
+  if (fieldError) {
+    throw new Error(`Invalid Merge : OBJECT type ${objectA.name} has non-equivalent fields : ${fieldError}`);
+  }
+
+}
+
+const assertInputObjectsEquivalent = (objectA, objectB) => {
+  const unmatchedFields = symmetricDifference(objectA.inputFields, objectB.inputFields, 'name');
+
+  if (unmatchedFields.length > 0) {
+    throw new Error(`Invalid Merge : INPUT_OBJECT type ${objectA.name} has duplicate definitions with different fields : ${unmatchedFields.join(', ')}.`);
+  }
+
+  const fieldError = objectA.inputFields.reduce((error, fieldA) => {
+    if (error) {
+      return error;
+    } else {
+      const fieldB = objectB.inputFields.find(f => f.name === fieldA.name);
+      return validateFieldsEquivalent(fieldA, fieldB);
+    }
+  }, null);
+
+  if (fieldError) {
+    throw new Error(`Invalid Merge : INPUT_OBJECT type ${objectA.name} has non-equivalent fields : ${fieldError}`);
+  }
+
+}
+
+const assertEnumsEquivalent = (enumA, enumB) => {
+  const unmatchedValues = symmetricDifference(enumA.enumValues, enumB.enumValues, 'name');
+
+  if (unmatchedValues.length > 0) {
+    throw new Error(`Invalid Merge : ENUM type ${enumA.name} has duplicate definitions with different values : ${unmatchedValues.join(', ')}.`);
+  }
+
+}
+
+
+// FIELD
+// name
+// description
+// args
+// type
+// isDeprecated
+// deprecationReason
+
+const validateFieldsEquivalent = (fieldA, fieldB) => {
+  // make sure args equivalent
+  const unmatchedArgs = symmetricDifference(fieldA.args, fieldB.args, 'name');
+
+  if (unmatchedArgs.length > 0) {
+    return `field ${fieldA.name} has duplicate definitions with different args : ${unmatchedArgs.join(', ')}.`;
+  }
+
+  const argError = fieldA.args.reduce((error, argA) => {
+    if (error) {
+      return error;
+    } else {
+      const argB = fieldB.args.find(a => a.name === argA.name);
+      return validateArgsEquivalent(argA, argB);
+    }
+  }, null);
+
+  if (argError) {
+    return `field ${fieldA.name} non-equivalent args : ${argError}`;
+  }
+
+  // make sure type equivalent
+  const typeError = validateTypesEquivalent(fieldA.type, fieldB.type);
+  if (typeError) {
+    return `field ${fieldA.name} non-equivalent types : ${typeError}`;
+  }
+
+}
+
+
+// ARG
+// name
+// description
+// type
+// defaultValue
+
+const validateArgsEquivalent = (argA, argB) => {
+
+  if (argA.defaultValue !== argB.defaultValue) {
+    return `args have different default values : ${argA.defaultValue}, ${argB.defaultValue}`;
+  }
+
+  const typeError = validateTypesEquivalent(argA.type, argB.type);
+  if (typeError) {
+    return `args non-equivalent types : ${typeError}`;
+  }
+}
+
+
+// TYPE
+// kind
+// name
+// ofType
+
+const validateTypesEquivalent = (typeA, typeB) => {
+  if (!typeA && !typeB) {
+    return null;
+  }
+
+  if (!typeA || !typeB) {
+    return `types do not match : ${typeA}, ${typeB}`;
+  }
+
+  if (typeA.kind !== typeB.kind) {
+    return `type kinds do not match : ${typeA.kind}, ${typeB.kind}`;
+  }
+
+  if (typeA.name !== typeB.name) {
+    return `type names do not match : ${typeA.name}, ${typeB.name}`;
+  }
+
+  const typeOfError = validateTypesEquivalent(typeA.ofType, typeB.ofType);
+  if (typeOfError) {
+    return `type typeOf do not match : ${typeOfError}`;
+  }
+}
+
+
+const symmetricDifference = (thingsA, thingsB, idProp) => {
+  const idsA = thingsA.map(t => t[idProp]);
+  const idsB = thingsB.map(t => t[idProp]);
+
+  return union(
+    difference(idsA, idsB),
+    difference(idsB, idsA)
+  );
 }

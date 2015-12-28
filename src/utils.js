@@ -19,6 +19,12 @@ export const values = obj => {
   return Object.keys(obj).map(key => obj[key]);
 }
 
+export const union = (...arrs) => {
+  return arrs.reduce((a, b) => {
+    return [...new Set([...a, ...b])];
+  });
+}
+
 export const intersect = (...arrs) => {
   return arrs.reduce((a, b) => {
     const bs = new Set(b);
