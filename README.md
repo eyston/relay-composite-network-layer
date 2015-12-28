@@ -18,6 +18,8 @@ Usage
 The first step is merging the schema.  You can add a build step or make it part of your `update-schema` script.
 
 ```js
+import {createCompositeSchema} from 'relay-composite-network-layer/lib/merge';
+
 const {schema,config} = createCompositeSchema({
   // name / value pairs of schemas
   server: serverSchema,
@@ -37,6 +39,8 @@ A full script example is at the end of the README.
 The next step is to create the `RelayCompositeNetworkLayer` on the client.
 
 ```js
+import RelayCompositeNetworkLayer from 'relay-composite-network-layer';
+
 const compositeNetworkLayer = new RelayCompositeNetworkLayer({
   // config is the output of the `createCompositeSchema` function
   ...config,
